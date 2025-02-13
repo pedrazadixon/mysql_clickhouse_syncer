@@ -42,7 +42,14 @@ DEFAULT_TYPE_MAPPING = {
 # Format: 'mysql_table': {
 #     'clickhouse_table': 'name_in_clickhouse',
 #     'columns': ['col1', 'col2', 'col3'],
-#     'id_column': 'column_to_track_sync'
+#     'id_column': 'column_to_track_sync',
+#     'type_mapping': {                    # Optional: Custom type mappings for specific columns
+#         'column_name': 'ClickHouseType'
+#     },
+#     'order_by': ['column1', 'column2'], # Optional: Sorting keys for MergeTree engine
+#     'partition_by': 'expression',        # Optional: Partitioning expression for MergeTree
+#     'sync_interval': seconds,           # Required: How often to sync this table (in seconds)
+#     'sync_type': 'full/incremental'     # Required: Whether to sync full table or only changes
 # }
 TABLE_MAPPINGS = {
     'example_table': {
@@ -57,8 +64,9 @@ TABLE_MAPPINGS = {
             'id': 'Int32',  # Primary key should not be nullable
             'created_at': 'DateTime',
         },
-        'partition_by': 'toMonday(created_at)',  # Optional
-        'sync_interval': 3600,  # Sync interval in seconds
-        'sync_type': 'incremental'  # 'full' or 'incremental'
+        'order_by': ['id'],              # Added example of order_by
+        'partition_by': 'toMonday(created_at)',
+        'sync_interval': 3600,           # Every hour
+        'sync_type': 'incremental'       # 'full' or 'incremental'
     }
 }
