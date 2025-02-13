@@ -233,6 +233,59 @@ def sync_table_full(mysql_cursor, clickhouse_client, table_name, table_config):
         return False
 
 
+def update_existing_records(mysql_cursor, clickhouse_client, table_name, table_config, last_synced_id):
+    try:
+        if 'update_config' not in table_config:
+            return
+
+        update_config = table_config['update_config']
+        timestamp_column = update_config['timestamp_column']
+        update_interval = update_config['update_interval']
+        columns = table_config['columns']
+        id_column = table_config['id_column']
+        ch_table = table_config['clickhouse_table']
+
+        # Get records that were updated recently
+        columns_sql = ', '.join(columns)
+        query = f"""
+            SELECT {columns_sql} 
+            FROM {table_name}
+            WHERE {timestamp_column} > DATE_SUB(NOW(), INTERVAL %s SECOND)
+            AND {id_column} <= %s
+        """
+        
+        mysql_cursor.execute(query, (update_interval, last_synced_id))
+        records = mysql_cursor.fetchall()
+
+        if not records:
+            logging.info(f"No records to update in {table_name}")
+            return
+
+        # Process records in batches
+        batch_size = BATCH_SIZE
+        for i in range(0, len(records), batch_size):
+            batch = records[i:i + batch_size]
+            
+            # Get IDs for the current batch
+            batch_ids = [str(record[columns.index(id_column)]) for record in batch]
+            
+            # Delete existing records in ClickHouse
+            delete_query = f"ALTER TABLE {ch_table} DELETE WHERE {id_column} IN ({','.join(batch_ids)})"
+            clickhouse_client.command(delete_query)
+
+            # Insert updated records
+            clickhouse_client.insert(
+                ch_table,
+                batch,
+                column_names=columns
+            )
+
+            logging.info(f"Updated {len(batch)} existing records in {table_name}")
+
+    except Exception as e:
+        logging.error(f"Error updating existing records in {table_name}: {str(e)}")
+
+
 def sync_table(mysql_cursor, clickhouse_client, table_name, table_config):
     sync_type = table_config.get('sync_type', 'incremental')
 
@@ -290,6 +343,8 @@ def sync_table(mysql_cursor, clickhouse_client, table_name, table_config):
             last_synced_id = new_last_id
 
             logging.info(f"Table {table_name}: Synced {len(records)} records. Progress: {last_synced_id}/{max_id}")
+
+        update_existing_records(mysql_cursor, clickhouse_client, table_name, table_config, last_synced_id)
 
         return True
 
