@@ -198,12 +198,13 @@ def sync_table_full(mysql_cursor, clickhouse_client, table_name, table_config):
 
         logging.info(f"Starting full sync of {table_name}. Total records: {total_records}")
 
+        columns_sql = ', '.join(columns)
+        columns_sql = columns_sql.replace(', __ver', ', NOW() AS __ver')
+
         # Process in batches
         offset = 0
         while True:
             # Get batch of records
-            columns_sql = ', '.join(columns)
-            columns_sql = columns_sql.replace(', __ver', ', NOW() AS __ver')
             mysql_cursor.execute(
                 f"SELECT {columns_sql} FROM {table_name} "
                 f"ORDER BY {id_column} LIMIT %s OFFSET %s",
