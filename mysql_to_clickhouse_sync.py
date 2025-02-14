@@ -188,7 +188,8 @@ def sync_table_full(mysql_cursor, clickhouse_client, table_name, table_config):
         create_clickhouse_table_if_not_exists(clickhouse_client, mysql_cursor, table_name, table_config)
 
         columns = table_config['columns']
-        columns.append('__ver')
+        if '__ver' not in columns:
+            columns.append('__ver')
         id_column = table_config['id_column']
         ch_table = table_config['clickhouse_table']
 
@@ -248,11 +249,8 @@ def update_existing_records(mysql_cursor, clickhouse_client, table_name, table_c
         timestamp_column = update_config['timestamp_column']
         update_interval = update_config['update_interval']
         columns = table_config['columns']
-
-        # TODO: review this if
         if '__ver' not in columns:
             columns.append('__ver')
-
         id_column = table_config['id_column']
         ch_table = table_config['clickhouse_table']
 
@@ -314,7 +312,8 @@ def sync_table(mysql_cursor, clickhouse_client, table_name, table_config):
         state = get_table_state(table_name, clickhouse_client, table_config)
         last_synced_id = state['last_id']
         columns = table_config['columns']
-        columns.append('__ver')
+        if '__ver' not in columns:
+            columns.append('__ver')
         id_column = table_config['id_column']
         ch_table = table_config['clickhouse_table']
 
