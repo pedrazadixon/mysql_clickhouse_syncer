@@ -83,6 +83,9 @@ def create_clickhouse_table_if_not_exists(clickhouse_client, mysql_cursor, table
             ch_type = map_to_clickhouse_type(mysql_types[col], col, table_config)
             columns_def.append(f"`{col}` {ch_type}")
 
+        # add _ver column DateTime
+        columns_def.append("`__ver` DateTime")
+
         # Prepare ORDER BY clause
         order_by = table_config.get('order_by', [table_config['id_column']])
         order_by_clause = ', '.join(order_by)
@@ -97,7 +100,7 @@ def create_clickhouse_table_if_not_exists(clickhouse_client, mysql_cursor, table
             (
                 {','.join(columns_def)}
             )
-            ENGINE = MergeTree()
+            ENGINE = ReplacingMergeTree(__ver)
             {partition_clause}
             ORDER BY ({order_by_clause})
         """
@@ -185,6 +188,7 @@ def sync_table_full(mysql_cursor, clickhouse_client, table_name, table_config):
         create_clickhouse_table_if_not_exists(clickhouse_client, mysql_cursor, table_name, table_config)
 
         columns = table_config['columns']
+        columns.append('__ver')
         id_column = table_config['id_column']
         ch_table = table_config['clickhouse_table']
 
@@ -199,6 +203,7 @@ def sync_table_full(mysql_cursor, clickhouse_client, table_name, table_config):
         while True:
             # Get batch of records
             columns_sql = ', '.join(columns)
+            columns_sql = columns_sql.replace(', __ver', ', NOW() AS __ver')
             mysql_cursor.execute(
                 f"SELECT {columns_sql} FROM {table_name} "
                 f"ORDER BY {id_column} LIMIT %s OFFSET %s",
@@ -242,18 +247,20 @@ def update_existing_records(mysql_cursor, clickhouse_client, table_name, table_c
         timestamp_column = update_config['timestamp_column']
         update_interval = update_config['update_interval']
         columns = table_config['columns']
+        columns.append('__ver')
         id_column = table_config['id_column']
         ch_table = table_config['clickhouse_table']
 
         # Get records that were updated recently
         columns_sql = ', '.join(columns)
+        columns_sql = columns_sql.replace(', __ver', ', NOW() AS __ver')
         query = f"""
             SELECT {columns_sql} 
             FROM {table_name}
             WHERE {timestamp_column} > DATE_SUB(NOW(), INTERVAL %s SECOND)
             AND {id_column} <= %s
         """
-        
+
         mysql_cursor.execute(query, (update_interval, last_synced_id))
         records = mysql_cursor.fetchall()
 
@@ -302,6 +309,7 @@ def sync_table(mysql_cursor, clickhouse_client, table_name, table_config):
         state = get_table_state(table_name, clickhouse_client, table_config)
         last_synced_id = state['last_id']
         columns = table_config['columns']
+        columns.append('__ver')
         id_column = table_config['id_column']
         ch_table = table_config['clickhouse_table']
 
@@ -317,6 +325,7 @@ def sync_table(mysql_cursor, clickhouse_client, table_name, table_config):
 
         # Construct the SQL query with specific columns
         columns_sql = ', '.join(columns)
+        columns_sql = columns_sql.replace(', __ver', ', NOW() AS __ver')
 
         while last_synced_id < max_id:
             mysql_cursor.execute(
