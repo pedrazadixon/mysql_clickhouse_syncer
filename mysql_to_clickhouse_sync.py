@@ -248,7 +248,11 @@ def update_existing_records(mysql_cursor, clickhouse_client, table_name, table_c
         timestamp_column = update_config['timestamp_column']
         update_interval = update_config['update_interval']
         columns = table_config['columns']
-        columns.append('__ver')
+
+        # TODO: review this if
+        if '__ver' not in columns:
+            columns.append('__ver')
+
         id_column = table_config['id_column']
         ch_table = table_config['clickhouse_table']
 
