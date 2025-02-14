@@ -371,7 +371,7 @@ def sync_data():
                 if sync_table(mysql_cursor, clickhouse_client, table_name, table_config):
                     has_synced = True
             else:
-                logging.info(f"Skipping {table_name}, not ready for sync yet")
+                logging.debug(f"Skipping {table_name}, not ready for sync yet")
 
         return has_synced
 
