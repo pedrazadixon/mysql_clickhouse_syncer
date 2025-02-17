@@ -216,11 +216,6 @@ def sync_table_full(mysql_cursor, clickhouse_client, table_name, table_config):
             if not records:
                 break
 
-            # For full sync, we'll first delete any existing records that we're about to update
-            id_values = [str(record[columns.index(id_column)]) for record in records]
-            delete_query = f"ALTER TABLE {ch_table} DELETE WHERE {id_column} IN ({','.join(id_values)})"
-            clickhouse_client.command(delete_query)
-
             # Insert new/updated records
             clickhouse_client.insert(
                 ch_table,
@@ -275,13 +270,6 @@ def update_existing_records(mysql_cursor, clickhouse_client, table_name, table_c
         batch_size = BATCH_SIZE
         for i in range(0, len(records), batch_size):
             batch = records[i:i + batch_size]
-
-            # Get IDs for the current batch
-            batch_ids = [str(record[columns.index(id_column)]) for record in batch]
-
-            # Delete existing records in ClickHouse
-            delete_query = f"ALTER TABLE {ch_table} DELETE WHERE {id_column} IN ({','.join(batch_ids)})"
-            clickhouse_client.command(delete_query)
 
             # Insert updated records
             clickhouse_client.insert(
